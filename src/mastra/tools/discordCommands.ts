@@ -723,7 +723,7 @@ export const grabCommandTool = createTool({
     if (member?.roles.cache.has(RESTRICTED_ROLE_ID)) {
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLOR)
-        .setDescription("🚫 **You don't have permission to grab pumpkins!**");
+        .setDescription("🚫 **You don't have perms to grab pumpkins**");
       
       await message.reply({ embeds: [embed] });
       logger?.info("🎃 [grabCommand] User has restricted role", { userId, roleId: RESTRICTED_ROLE_ID });
