@@ -162,13 +162,43 @@ export const trickOrTreatTool = createTool({
       }
       description += ` Your total: **${newBalance} candies**`;
       
+      // 3% chance to get a multiplier powerup from trickortreat
+      let trickortreatPowerup = null;
+      if (Math.random() < 0.03) {
+        const powerupTypes = [
+          { type: "candy_boost", name: "Candy Boost", multiplier: 2.0, duration: 30 },
+          { type: "mega_boost", name: "Mega Boost", multiplier: 3.0, duration: 15 },
+          { type: "lucky_charm", name: "Lucky Charm", multiplier: 1.5, duration: 60 },
+        ];
+        
+        const randomPowerup = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+        const expiresAt = new Date(Date.now() + randomPowerup.duration * 60000);
+        
+        const powerupClient = await sharedPgPool.connect();
+        try {
+          await powerupClient.query(
+            `INSERT INTO discord_powerups (user_id, powerup_type, powerup_name, multiplier, duration_minutes, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [userId, randomPowerup.type, randomPowerup.name, randomPowerup.multiplier, randomPowerup.duration, expiresAt]
+          );
+          trickortreatPowerup = randomPowerup;
+          logger?.info("✨ [trickOrTreat] Powerup granted!", { userId, powerup: randomPowerup.name });
+        } finally {
+          powerupClient.release();
+        }
+      }
+      
+      if (trickortreatPowerup) {
+        description += `\n\n✨ **BONUS!** You also found a **${trickortreatPowerup.name}** powerup! (${trickortreatPowerup.multiplier}x candy for ${trickortreatPowerup.duration} minutes)`;
+      }
+      
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLOR)
         .setDescription(description);
       
       await message.reply({ embeds: [embed] });
       
-      logger?.info("🎃 [trickOrTreat] Treat given", { userId, actualEarned, newBalance });
+      logger?.info("🎃 [trickOrTreat] Treat given", { userId, actualEarned, newBalance, powerup: !!trickortreatPowerup });
       
       const cooldownClient = await sharedPgPool!.connect();
       try {
@@ -829,7 +859,26 @@ export const grabCommandTool = createTool({
         multiplierClient.release();
       }
       
-      // 5% chance to get a powerup
+      // 1.5% chance to get candy boost (adds 100 candies to this pumpkin)
+      let candyBoostApplied = false;
+      if (Math.random() < 0.015) {
+        const bonusClient = await sharedPgPool.connect();
+        try {
+          await bonusClient.query(
+            `INSERT INTO discord_candy_balances (user_id, candy_balance) 
+             VALUES ($1, 100)
+             ON CONFLICT (user_id) 
+             DO UPDATE SET candy_balance = discord_candy_balances.candy_balance + 100`,
+            [userId]
+          );
+          candyBoostApplied = true;
+          logger?.info("💰 [grabCommand] Candy boost applied!", { userId });
+        } finally {
+          bonusClient.release();
+        }
+      }
+      
+      // 5% chance to get a multiplier powerup
       const powerupChance = Math.random();
       let powerupGranted = null;
       
@@ -838,6 +887,8 @@ export const grabCommandTool = createTool({
           { type: "candy_boost", name: "Candy Boost", multiplier: 2.0, duration: 30 },
           { type: "mega_boost", name: "Mega Boost", multiplier: 3.0, duration: 15 },
           { type: "lucky_charm", name: "Lucky Charm", multiplier: 1.5, duration: 60 },
+          { type: "super_luck", name: "Super Luck", multiplier: 2.5, duration: 20 },
+          { type: "golden_hour", name: "Golden Hour", multiplier: 4.0, duration: 10 },
         ];
         
         const randomPowerup = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
@@ -857,6 +908,31 @@ export const grabCommandTool = createTool({
         }
       }
       
+      // 3% chance to get a usable powerup (e.g., double pumpkin spawner)
+      let usablePowerupGranted = null;
+      if (Math.random() < 0.03) {
+        const usablePowerupTypes = [
+          { type: "double_pumpkin", name: "Double Pumpkin", data: { spawns: 2 } },
+          { type: "triple_pumpkin", name: "Triple Pumpkin", data: { spawns: 3 } },
+          { type: "candy_rain", name: "Candy Rain", data: { amount: 200 } },
+        ];
+        
+        const randomUsablePowerup = usablePowerupTypes[Math.floor(Math.random() * usablePowerupTypes.length)];
+        
+        const usablePowerupClient = await sharedPgPool.connect();
+        try {
+          await usablePowerupClient.query(
+            `INSERT INTO discord_usable_powerups (user_id, powerup_type, powerup_name, powerup_data)
+             VALUES ($1, $2, $3, $4)`,
+            [userId, randomUsablePowerup.type, randomUsablePowerup.name, JSON.stringify(randomUsablePowerup.data)]
+          );
+          usablePowerupGranted = randomUsablePowerup;
+          logger?.info("🎁 [grabCommand] Usable powerup granted!", { userId, powerup: randomUsablePowerup.name });
+        } finally {
+          usablePowerupClient.release();
+        }
+      }
+      
       let description = `🎃 **Congratulations ${username}!** You caught the pumpkin and got `;
       if (totalMultiplier > 1) {
         description += `**${baseCandies} candies** (x${totalMultiplier.toFixed(2)} = **${actualEarned} candies**)! 🍬`;
@@ -865,8 +941,16 @@ export const grabCommandTool = createTool({
       }
       description += `\nYour total: **${newBalance} candies**`;
       
+      if (candyBoostApplied) {
+        description += `\n\n💰 **JACKPOT!** You found a **Candy Boost** and got an extra **100 candies**!`;
+      }
+      
       if (powerupGranted) {
         description += `\n\n✨ **BONUS!** You found a **${powerupGranted.name}** powerup! (${powerupGranted.multiplier}x candy for ${powerupGranted.duration} minutes)`;
+      }
+      
+      if (usablePowerupGranted) {
+        description += `\n\n🎁 **SPECIAL!** You found a **${usablePowerupGranted.name}** powerup! Use \`!usepu\` to activate it!`;
       }
       
       const embed = new EmbedBuilder()
