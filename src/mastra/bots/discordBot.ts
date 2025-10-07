@@ -738,12 +738,16 @@ export async function initializeDiscordBot(mastra: Mastra) {
             // Check if @everyone role can send messages (so regular users can grab)
             const everyoneRole = guild.roles.everyone;
             if (everyoneRole && channel.permissionsFor(everyoneRole)?.has("SendMessages")) {
-              // Exclude channels where the restricted role can send messages
-              const RESTRICTED_ROLE_ID = "1392489027327885455";
-              const restrictedRole = guild.roles.cache.get(RESTRICTED_ROLE_ID);
-              if (restrictedRole && channel.permissionsFor(restrictedRole)?.has("SendMessages")) {
-                return; // Skip this channel
+              // Exclude channels where specific roles CANNOT chat
+              const REQUIRED_ROLE_IDS = ["1194335353381867541", "1287746149029118034"];
+              
+              for (const roleId of REQUIRED_ROLE_IDS) {
+                const role = guild.roles.cache.get(roleId);
+                if (role && !channel.permissionsFor(role)?.has("SendMessages")) {
+                  return; // Skip this channel - at least one required role cannot chat here
+                }
               }
+              
               textChannels.push(channel);
             }
           }
