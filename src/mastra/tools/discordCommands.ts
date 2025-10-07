@@ -716,6 +716,20 @@ export const grabCommandTool = createTool({
     
     logger?.info("🎃 [grabCommand] Attempting to grab pumpkin", { userId, channelId });
     
+    // Check if user has the restricted role
+    const RESTRICTED_ROLE_ID = "1392489027327885455";
+    const member = message.member;
+    
+    if (member?.roles.cache.has(RESTRICTED_ROLE_ID)) {
+      const embed = new EmbedBuilder()
+        .setColor(EMBED_COLOR)
+        .setDescription("🚫 **You don't have permission to grab pumpkins!**");
+      
+      await message.reply({ embeds: [embed] });
+      logger?.info("🎃 [grabCommand] User has restricted role", { userId, roleId: RESTRICTED_ROLE_ID });
+      return { result: "restricted_role" };
+    }
+    
     const runtimeContext = new RuntimeContext();
     if (!sharedPgPool) throw new Error("Database pool not initialized");
     const client = await sharedPgPool.connect();
