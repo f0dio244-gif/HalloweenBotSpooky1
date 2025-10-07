@@ -247,8 +247,10 @@ export async function initializeDiscordBot(mastra: Mastra) {
               { name: "!enable", value: "Enable the bot (admin only)", inline: false },
               { name: "!disable", value: "Disable the bot (admin only)", inline: false },
               { name: "!pumpkininbound", value: "Spawn 5 pumpkins in random channels (admin only)", inline: false },
-              { name: "!spumpkin", value: "Spawn a pumpkin in current channel", inline: false },
-              { name: "!candymodifier <±%>", value: "Adjust candy drop rates (e.g., !candymodifier 25% or !candymodifier -25%) (admin only)", inline: false }
+              { name: "!spumpkin [number]", value: "Spawn pumpkins in current channel (admin only)", inline: false },
+              { name: "!candymodifier <±%>", value: "Adjust candy drop rates (e.g., !candymodifier 25% or !candymodifier -25%) (admin only)", inline: false },
+              { name: "!randompu @user", value: "Give a random powerup to a user (admin only)", inline: false },
+              { name: "!givecandy @user <amount>", value: "Give candies to a user (admin only)", inline: false }
             );
           
           await message.reply({ embeds: [embed] });
@@ -400,6 +402,95 @@ export async function initializeDiscordBot(mastra: Mastra) {
           } finally {
             client.release();
           }
+          return;
+        }
+        
+        if (command === "randompu") {
+          const member = message.member as any;
+          if (!member?.permissions?.has("Administrator")) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Only administrators can give powerups!");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const targetUser = message.mentions.users.first();
+          if (!targetUser) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Please mention a user! Usage: `!randompu @user`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const powerupTypes = [
+            { type: "candy_boost", name: "Candy Boost", multiplier: 2.0, duration: 30 },
+            { type: "mega_boost", name: "Mega Boost", multiplier: 3.0, duration: 15 },
+            { type: "lucky_charm", name: "Lucky Charm", multiplier: 1.5, duration: 60 },
+          ];
+          
+          const randomPowerup = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+          const expiresAt = new Date(Date.now() + randomPowerup.duration * 60000);
+          
+          if (!sharedPgPool) return;
+          const client = await sharedPgPool.connect();
+          try {
+            await client.query(
+              `INSERT INTO discord_powerups (user_id, powerup_type, powerup_name, multiplier, duration_minutes, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [targetUser.id, randomPowerup.type, randomPowerup.name, randomPowerup.multiplier, randomPowerup.duration, expiresAt]
+            );
+            
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription(`✨ **${targetUser.username}** received a **${randomPowerup.name}** powerup! (${randomPowerup.multiplier}x candy for ${randomPowerup.duration} minutes)`);
+            
+            await message.reply({ embeds: [embed] });
+            logger?.info("✨ [DiscordBot] Powerup granted by admin", { adminId: userId, targetId: targetUser.id, powerup: randomPowerup.name });
+          } finally {
+            client.release();
+          }
+          return;
+        }
+        
+        if (command === "givecandy") {
+          const member = message.member as any;
+          if (!member?.permissions?.has("Administrator")) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Only administrators can give candies!");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const targetUser = message.mentions.users.first();
+          const amount = parseInt(args[1]);
+          
+          if (!targetUser || isNaN(amount) || amount <= 0) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Invalid usage! Format: `!givecandy @user <amount>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const { newBalance } = await addCandyTool.execute({
+            context: { userId: targetUser.id, amount, source: "admin_gift", guildId },
+            runtimeContext,
+            mastra,
+          });
+          
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`🍬 **${targetUser.username}** received **${amount} candies** from an admin! New balance: **${newBalance} candies**`);
+          
+          await message.reply({ embeds: [embed] });
+          logger?.info("🍬 [DiscordBot] Candies given by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
           return;
         }
       }
