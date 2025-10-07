@@ -111,6 +111,39 @@ export async function initializeDatabase() {
       )
     `);
     
+    // Create discord_usable_powerups table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discord_usable_powerups (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        powerup_type VARCHAR(255) NOT NULL,
+        powerup_name VARCHAR(255) NOT NULL,
+        powerup_data JSONB,
+        acquired_at TIMESTAMP DEFAULT NOW(),
+        used BOOLEAN DEFAULT false,
+        used_at TIMESTAMP
+      )
+    `);
+    
+    // Create discord_role_multipliers table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discord_role_multipliers (
+        user_id VARCHAR(255) NOT NULL,
+        guild_id VARCHAR(255) NOT NULL,
+        role_multipliers JSONB DEFAULT '[]',
+        PRIMARY KEY (user_id, guild_id)
+      )
+    `);
+    
+    // Create discord_halloween_dms table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discord_halloween_dms (
+        user_id VARCHAR(255) PRIMARY KEY,
+        dm_sent BOOLEAN DEFAULT false,
+        sent_at TIMESTAMP
+      )
+    `);
+    
     console.log("✅ Database tables initialized successfully");
   } catch (error) {
     console.error("❌ Error initializing database:", error);
