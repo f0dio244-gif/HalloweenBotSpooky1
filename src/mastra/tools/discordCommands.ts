@@ -502,10 +502,16 @@ export const pumpkinInboundCommandTool = createTool({
     
     // Get all valid channels
     const textChannels: any[] = [];
+    const RESTRICTED_ROLE_ID = "1392489027327885455";
     guild.channels.cache.forEach((channel: any) => {
       if (channel.isTextBased() && !channel.isDMBased()) {
         const role = guild.roles.cache.get(REQUIRED_ROLE_ID);
         if (role && channel.permissionsFor(role)?.has("SendMessages")) {
+          // Exclude channels where the restricted role can send messages
+          const restrictedRole = guild.roles.cache.get(RESTRICTED_ROLE_ID);
+          if (restrictedRole && channel.permissionsFor(restrictedRole)?.has("SendMessages")) {
+            return; // Skip this channel
+          }
           textChannels.push(channel);
         }
       }

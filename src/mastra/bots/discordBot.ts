@@ -646,6 +646,12 @@ export async function initializeDiscordBot(mastra: Mastra) {
             // Check if @everyone role can send messages (so regular users can grab)
             const everyoneRole = guild.roles.everyone;
             if (everyoneRole && channel.permissionsFor(everyoneRole)?.has("SendMessages")) {
+              // Exclude channels where the restricted role can send messages
+              const RESTRICTED_ROLE_ID = "1392489027327885455";
+              const restrictedRole = guild.roles.cache.get(RESTRICTED_ROLE_ID);
+              if (restrictedRole && channel.permissionsFor(restrictedRole)?.has("SendMessages")) {
+                return; // Skip this channel
+              }
               textChannels.push(channel);
             }
           }
