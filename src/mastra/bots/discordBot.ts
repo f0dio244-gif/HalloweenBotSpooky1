@@ -364,8 +364,8 @@ export async function initializeDiscordBot(mastra: Mastra) {
               currentMultiplier = 1.0;
             }
             
-            // Calculate new multiplier (add percentage change to current)
-            let newMultiplier = currentMultiplier + (change / 100);
+            // Calculate new multiplier (set based on percentage)
+            let newMultiplier = 1 + (change / 100);
             
             // Ensure multiplier stays within reasonable bounds (0.1x to 10x)
             newMultiplier = Math.max(0.1, Math.min(10.0, newMultiplier));
