@@ -238,6 +238,7 @@ export async function initializeDiscordBot(mastra: Mastra) {
             .addFields(
               { name: "!trickortreat", value: "Get random candies or a trick (1 hour cooldown)", inline: false },
               { name: "!grab", value: "Grab a spawned pumpkin to win candies", inline: false },
+              { name: "!usepu", value: "Use a powerup from your inventory", inline: false },
               { name: "!candies", value: "Check your candy balance", inline: false },
               { name: "!history", value: "View your last 10 candy earnings", inline: false },
               { name: "!shop", value: "Open the candy shop to buy roles and upgrades", inline: false },
@@ -492,6 +493,172 @@ export async function initializeDiscordBot(mastra: Mastra) {
           await message.reply({ embeds: [embed] });
           logger?.info("🍬 [DiscordBot] Candies given by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
           return;
+        }
+        
+        if (command === "usepu") {
+          if (!sharedPgPool) return;
+          const client = await sharedPgPool.connect();
+          try {
+            const result = await client.query(
+              `SELECT * FROM discord_usable_powerups WHERE user_id = $1 AND used = false ORDER BY id LIMIT 1`,
+              [userId]
+            );
+            
+            if (result.rows.length === 0) {
+              const embed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setDescription("❌ You don't have any usable powerups! Get them from pumpkins!");
+              
+              await message.reply({ embeds: [embed] });
+              return;
+            }
+            
+            const powerup = result.rows[0];
+            const powerupData = powerup.powerup_data;
+            
+            if (powerup.powerup_type === "double_pumpkin" || powerup.powerup_type === "triple_pumpkin") {
+              const spawns = powerupData.spawns || 2;
+              
+              await client.query(
+                `UPDATE discord_usable_powerups SET used = true, used_at = NOW() WHERE id = $1`,
+                [powerup.id]
+              );
+              
+              const embed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setDescription(`🎁 **${powerup.powerup_name}** activated! Spawning ${spawns} pumpkins...`);
+              
+              await message.reply({ embeds: [embed] });
+              
+              for (let i = 0; i < spawns; i++) {
+                let attempts = 0;
+                while (attempts < 60) {
+                  const checkClient = await sharedPgPool.connect();
+                  try {
+                    const stateCheck = await checkClient.query(
+                      "SELECT active FROM discord_pumpkin_state WHERE id = 1"
+                    );
+                    if (!stateCheck.rows[0]?.active) break;
+                  } finally {
+                    checkClient.release();
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  attempts++;
+                }
+                
+                const candyAmount = Math.floor(Math.random() * 21) + 10;
+                const spawnEmbed = new EmbedBuilder()
+                  .setColor(0xe67e22)
+                  .setDescription(`🎃 **A pumpkin has appeared!** Type \`!grab\` to catch it and win **${candyAmount} candies**! 🍬`);
+                
+                const channel = message.channel as any;
+                const spawnMessage = await channel.send({ embeds: [spawnEmbed] });
+                
+                await client.query(
+                  `UPDATE discord_pumpkin_state 
+                   SET active = true, spawn_requested = false, channel_id = $1, message_id = $2, candy_amount = $3, spawned_at = NOW()
+                   WHERE id = 1`,
+                  [channelId, spawnMessage.id, candyAmount]
+                );
+                
+                setTimeout(async () => {
+                  if (!sharedPgPool) return;
+                  const despawnClient = await sharedPgPool.connect();
+                  try {
+                    const stillActiveCheck = await despawnClient.query(
+                      "SELECT * FROM discord_pumpkin_state WHERE id = 1 AND active = true AND message_id = $1",
+                      [spawnMessage.id]
+                    );
+                    if (stillActiveCheck.rows.length > 0) {
+                      const despawnEmbed = new EmbedBuilder()
+                        .setColor(0xe67e22)
+                        .setDescription("💨 **Too slow! The pumpkin rolled away...**");
+                      await spawnMessage.edit({ embeds: [despawnEmbed] });
+                      await despawnClient.query(
+                        "UPDATE discord_pumpkin_state SET active = false WHERE id = 1"
+                      );
+                    }
+                  } finally {
+                    despawnClient.release();
+                  }
+                }, 30000);
+              }
+              
+              logger?.info("🎁 [DiscordBot] Usable powerup used", { userId, powerup: powerup.powerup_name, spawns });
+            } else if (powerup.powerup_type === "candy_rain") {
+              const amount = powerupData.amount || 200;
+              
+              await client.query(
+                `UPDATE discord_usable_powerups SET used = true, used_at = NOW() WHERE id = $1`,
+                [powerup.id]
+              );
+              
+              const { newBalance } = await addCandyTool.execute({
+                context: { userId, amount, source: "candy_rain_powerup", guildId },
+                runtimeContext,
+                mastra,
+              });
+              
+              const embed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setDescription(`🌧️ **${powerup.powerup_name}** activated! You received **${amount} candies**! 🍬\nYour total: **${newBalance} candies**`);
+              
+              await message.reply({ embeds: [embed] });
+              logger?.info("🎁 [DiscordBot] Candy rain powerup used", { userId, amount, newBalance });
+            }
+          } finally {
+            client.release();
+          }
+          return;
+        }
+      }
+      
+      // Check for Halloween keywords and DM user once
+      const halloweenKeywords = ["halloween", "trick or treat", "pumpkin", "candy", "spooky", "haunted"];
+      const messageContent = message.content.toLowerCase();
+      const containsHalloweenKeyword = halloweenKeywords.some(keyword => messageContent.includes(keyword));
+      
+      if (containsHalloweenKeyword && sharedPgPool) {
+        const dmCheckClient = await sharedPgPool.connect();
+        try {
+          const dmCheck = await dmCheckClient.query(
+            `SELECT dm_sent FROM discord_halloween_dms WHERE user_id = $1`,
+            [userId]
+          );
+          
+          if (dmCheck.rows.length === 0 || !dmCheck.rows[0].dm_sent) {
+            try {
+              const dmEmbed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setTitle("🎃 Welcome to the Halloween Event! 🎃")
+                .setDescription(
+                  `Hello **${username}**! 👋\n\n` +
+                  `I noticed you mentioned Halloween! Here's how to participate in the candy collection event:\n\n` +
+                  `🍬 **!trickortreat** - Get random candies every hour\n` +
+                  `🎃 **!grab** - Catch pumpkins when they spawn for candies\n` +
+                  `🛒 **!shop** - Spend candies on roles and upgrades\n` +
+                  `🏆 **!leaderboard** - See top candy collectors\n` +
+                  `📜 **!commands** - View all available commands\n\n` +
+                  `Good luck collecting candies! 🎃`
+                );
+              
+              await message.author.send({ embeds: [dmEmbed] });
+              
+              await dmCheckClient.query(
+                `INSERT INTO discord_halloween_dms (user_id, dm_sent, sent_at)
+                 VALUES ($1, true, NOW())
+                 ON CONFLICT (user_id)
+                 DO UPDATE SET dm_sent = true, sent_at = NOW()`,
+                [userId]
+              );
+              
+              logger?.info("📬 [DiscordBot] Halloween DM sent", { userId });
+            } catch (error) {
+              logger?.warn("📬 [DiscordBot] Could not send DM to user", { userId, error });
+            }
+          }
+        } finally {
+          dmCheckClient.release();
         }
       }
       
