@@ -221,8 +221,9 @@ export async function initializeDiscordBot(mastra: Mastra) {
         }
         
         if (command === "spumpkin") {
+          const count = args[0] ? parseInt(args[0]) : 1;
           await spawnPumpkinCommandTool.execute({
-            context: { userId, username, guildId, channelId, message },
+            context: { userId, username, guildId, channelId, message, count: isNaN(count) ? 1 : count },
             runtimeContext,
             mastra,
           });

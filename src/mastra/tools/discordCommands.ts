@@ -626,79 +626,108 @@ export const pumpkinInboundCommandTool = createTool({
 // Spawn Pumpkin command (spawn in current channel)
 export const spawnPumpkinCommandTool = createTool({
   id: "spawn-pumpkin-command",
-  description: "Handles the !spumpkin command - spawns a pumpkin in the current channel",
+  description: "Handles the !spumpkin command - spawns pumpkins in the current channel",
   inputSchema: z.object({
     userId: z.string(),
     username: z.string(),
     guildId: z.string(),
     channelId: z.string(),
     message: z.any(),
+    count: z.number().default(1),
   }),
   outputSchema: z.object({
     result: z.string(),
   }),
   execute: async ({ context, mastra }) => {
     const logger = mastra?.getLogger();
-    const { userId, username, guildId, channelId, message } = context;
+    const { userId, username, guildId, channelId, message, count } = context;
     
-    logger?.info("🎃 [spawnPumpkin] Command executed", { userId, channelId });
+    const spawnCount = Math.min(Math.max(count, 1), 10); // Limit to 1-10 pumpkins
+    logger?.info("🎃 [spawnPumpkin] Command executed", { userId, channelId, count: spawnCount });
     
     if (!sharedPgPool) throw new Error("Database pool not initialized");
-    const client = await sharedPgPool.connect();
     
-    try {
-      // Random candy amount between 10-30
-      const candyAmount = Math.floor(Math.random() * 21) + 10;
-      
-      const spawnEmbed = new EmbedBuilder()
+    if (spawnCount > 1) {
+      const confirmEmbed = new EmbedBuilder()
         .setColor(0xe67e22)
-        .setDescription(`🎃 **A pumpkin has appeared!** Type \`!grab\` to catch it and win **${candyAmount} candies**! 🍬`);
+        .setDescription(`🎃 **Spawning ${spawnCount} pumpkins!** They'll appear one by one as each is claimed!`);
       
-      const spawnMessage = await message.channel.send({ embeds: [spawnEmbed] });
-      
-      // Update pumpkin state in database
-      await client.query(
-        `UPDATE discord_pumpkin_state 
-         SET active = true, spawn_requested = false, channel_id = $1, message_id = $2, candy_amount = $3, spawned_at = NOW()
-         WHERE id = 1`,
-        [channelId, spawnMessage.id, candyAmount]
-      );
-      
-      logger?.info("🎃 [spawnPumpkin] Pumpkin spawned", { channelId, candyAmount });
-      
-      // Auto-despawn after 30 seconds
-      setTimeout(async () => {
-        if (!sharedPgPool) return;
-        const despawnClient = await sharedPgPool.connect();
-        
-        try {
-          const stillActiveCheck = await despawnClient.query(
-            "SELECT * FROM discord_pumpkin_state WHERE id = 1 AND active = true AND message_id = $1",
-            [spawnMessage.id]
-          );
-          
-          if (stillActiveCheck.rows.length > 0) {
-            const despawnEmbed = new EmbedBuilder()
-              .setColor(0xe67e22)
-              .setDescription("💨 **Too slow! The pumpkin rolled away...**");
-            
-            await spawnMessage.edit({ embeds: [despawnEmbed] });
-            await despawnClient.query(
-              "UPDATE discord_pumpkin_state SET active = false WHERE id = 1"
-            );
-            logger?.info("🎃 [spawnPumpkin] Pumpkin despawned (timeout)");
-          }
-        } catch (error) {
-          logger?.error("❌ [spawnPumpkin] Error despawning pumpkin", { error });
-        } finally {
-          despawnClient.release();
-        }
-      }, 30000);
-      
-      return { result: "success" };
-    } finally {
-      client.release();
+      await message.reply({ embeds: [confirmEmbed] });
     }
+    
+    // Spawn pumpkins sequentially
+    for (let i = 0; i < spawnCount; i++) {
+      // Wait for any active pumpkin to be cleared
+      let attempts = 0;
+      while (attempts < 60) {
+        const checkClient = await sharedPgPool.connect();
+        try {
+          const stateCheck = await checkClient.query(
+            "SELECT active FROM discord_pumpkin_state WHERE id = 1"
+          );
+          if (!stateCheck.rows[0]?.active) break;
+        } finally {
+          checkClient.release();
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
+      const client = await sharedPgPool.connect();
+      try {
+        // Random candy amount between 10-30
+        const candyAmount = Math.floor(Math.random() * 21) + 10;
+        
+        const spawnEmbed = new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setDescription(`🎃 **A pumpkin has appeared!** Type \`!grab\` to catch it and win **${candyAmount} candies**! 🍬`);
+        
+        const spawnMessage = await message.channel.send({ embeds: [spawnEmbed] });
+        
+        // Update pumpkin state in database
+        await client.query(
+          `UPDATE discord_pumpkin_state 
+           SET active = true, spawn_requested = false, channel_id = $1, message_id = $2, candy_amount = $3, spawned_at = NOW()
+           WHERE id = 1`,
+          [channelId, spawnMessage.id, candyAmount]
+        );
+        
+        logger?.info("🎃 [spawnPumpkin] Pumpkin spawned", { channelId, candyAmount, number: i + 1, total: spawnCount });
+        
+        // Auto-despawn after 30 seconds
+        setTimeout(async () => {
+          if (!sharedPgPool) return;
+          const despawnClient = await sharedPgPool.connect();
+          
+          try {
+            const stillActiveCheck = await despawnClient.query(
+              "SELECT * FROM discord_pumpkin_state WHERE id = 1 AND active = true AND message_id = $1",
+              [spawnMessage.id]
+            );
+            
+            if (stillActiveCheck.rows.length > 0) {
+              const despawnEmbed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setDescription("💨 **Too slow! The pumpkin rolled away...**");
+              
+              await spawnMessage.edit({ embeds: [despawnEmbed] });
+              await despawnClient.query(
+                "UPDATE discord_pumpkin_state SET active = false WHERE id = 1"
+              );
+              logger?.info("🎃 [spawnPumpkin] Pumpkin despawned (timeout)");
+            }
+          } catch (error) {
+            logger?.error("❌ [spawnPumpkin] Error despawning pumpkin", { error });
+          } finally {
+            despawnClient.release();
+          }
+        }, 30000);
+      } finally {
+        client.release();
+      }
+    }
+    
+    return { result: "success" };
   },
 });
 
