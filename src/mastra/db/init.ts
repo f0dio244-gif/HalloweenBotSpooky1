@@ -96,6 +96,21 @@ export async function initializeDatabase() {
       )
     `);
     
+    // Create discord_powerups table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discord_powerups (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        powerup_type VARCHAR(255) NOT NULL,
+        powerup_name VARCHAR(255) NOT NULL,
+        multiplier DECIMAL,
+        duration_minutes INTEGER,
+        acquired_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        active BOOLEAN DEFAULT true
+      )
+    `);
+    
     console.log("✅ Database tables initialized successfully");
   } catch (error) {
     console.error("❌ Error initializing database:", error);

@@ -829,6 +829,34 @@ export const grabCommandTool = createTool({
         multiplierClient.release();
       }
       
+      // 5% chance to get a powerup
+      const powerupChance = Math.random();
+      let powerupGranted = null;
+      
+      if (powerupChance < 0.05) {
+        const powerupTypes = [
+          { type: "candy_boost", name: "Candy Boost", multiplier: 2.0, duration: 30 },
+          { type: "mega_boost", name: "Mega Boost", multiplier: 3.0, duration: 15 },
+          { type: "lucky_charm", name: "Lucky Charm", multiplier: 1.5, duration: 60 },
+        ];
+        
+        const randomPowerup = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+        const expiresAt = new Date(Date.now() + randomPowerup.duration * 60000);
+        
+        const powerupClient = await sharedPgPool.connect();
+        try {
+          await powerupClient.query(
+            `INSERT INTO discord_powerups (user_id, powerup_type, powerup_name, multiplier, duration_minutes, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [userId, randomPowerup.type, randomPowerup.name, randomPowerup.multiplier, randomPowerup.duration, expiresAt]
+          );
+          powerupGranted = randomPowerup;
+          logger?.info("✨ [grabCommand] Powerup granted!", { userId, powerup: randomPowerup.name });
+        } finally {
+          powerupClient.release();
+        }
+      }
+      
       let description = `🎃 **Congratulations ${username}!** You caught the pumpkin and got `;
       if (totalMultiplier > 1) {
         description += `**${baseCandies} candies** (x${totalMultiplier.toFixed(2)} = **${actualEarned} candies**)! 🍬`;
@@ -837,13 +865,17 @@ export const grabCommandTool = createTool({
       }
       description += `\nYour total: **${newBalance} candies**`;
       
+      if (powerupGranted) {
+        description += `\n\n✨ **BONUS!** You found a **${powerupGranted.name}** powerup! (${powerupGranted.multiplier}x candy for ${powerupGranted.duration} minutes)`;
+      }
+      
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLOR)
         .setDescription(description);
       
       await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
       
-      logger?.info("🎃 [grabCommand] Pumpkin grabbed successfully", { userId, actualEarned, newBalance });
+      logger?.info("🎃 [grabCommand] Pumpkin grabbed successfully", { userId, actualEarned, newBalance, powerupGranted: !!powerupGranted });
       return { result: "success", candiesEarned: actualEarned };
     } catch (error) {
       await client.query("ROLLBACK");
