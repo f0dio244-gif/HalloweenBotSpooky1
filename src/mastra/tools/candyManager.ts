@@ -31,6 +31,40 @@ async function getGuildMultiplier(guildId?: string): Promise<number> {
   }
 }
 
+async function getPowerupMultiplier(userId: string): Promise<number> {
+  if (!sharedPgPool) return 1;
+  const client = await sharedPgPool.connect();
+  try {
+    const result = await client.query(
+      `SELECT multiplier FROM discord_powerups 
+       WHERE user_id = $1 AND expires_at > NOW() 
+       ORDER BY multiplier DESC LIMIT 1`,
+      [userId]
+    );
+    return result.rows[0]?.multiplier || 1.0;
+  } finally {
+    client.release();
+  }
+}
+
+async function getRoleMultipliers(userId: string, guildId?: string): Promise<number> {
+  if (!sharedPgPool || !guildId) return 1;
+  const client = await sharedPgPool.connect();
+  try {
+    const result = await client.query(
+      `SELECT role_multipliers FROM discord_role_multipliers WHERE user_id = $1 AND guild_id = $2`,
+      [userId, guildId]
+    );
+    const roleMultipliers = result.rows[0]?.role_multipliers || [];
+    
+    // Stack all role multipliers (e.g., [1.1, 1.2] = 1.32x total)
+    if (roleMultipliers.length === 0) return 1.0;
+    return roleMultipliers.reduce((acc: number, mult: number) => acc * mult, 1.0);
+  } finally {
+    client.release();
+  }
+}
+
 export const getCandyBalanceTool = createTool({
   id: "get-candy-balance",
   description: "Gets the candy balance for a Discord user",
@@ -81,13 +115,15 @@ export const addCandyTool = createTool({
     const logger = mastra?.getLogger();
     const { userId, amount, source = "unknown", guildId } = context;
     
-    // Apply both upgrade and guild multipliers
+    // Apply all multipliers (they stack)
     const upgradeMultiplier = await getUpgradeMultiplier(userId);
     const guildMultiplier = await getGuildMultiplier(guildId);
-    const totalMultiplier = upgradeMultiplier * guildMultiplier;
+    const powerupMultiplier = await getPowerupMultiplier(userId);
+    const roleMultiplier = await getRoleMultipliers(userId, guildId);
+    const totalMultiplier = upgradeMultiplier * guildMultiplier * powerupMultiplier * roleMultiplier;
     const finalAmount = Math.floor(amount * totalMultiplier);
     
-    logger?.info("🔧 [addCandy] Adding candy", { userId, amount, upgradeMultiplier, guildMultiplier, totalMultiplier, finalAmount, source });
+    logger?.info("🔧 [addCandy] Adding candy", { userId, amount, upgradeMultiplier, guildMultiplier, powerupMultiplier, roleMultiplier, totalMultiplier, finalAmount, source });
     
     if (!sharedPgPool) throw new Error("Database pool not initialized");
     const client = await sharedPgPool.connect();
