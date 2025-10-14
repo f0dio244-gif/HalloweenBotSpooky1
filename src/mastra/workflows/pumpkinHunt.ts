@@ -2,12 +2,10 @@ import { createWorkflow, createStep } from "../inngest";
 import { z } from "zod";
 import { sharedPgPool } from "../storage";
 
-const emptySchema = z.object({});
-
 const spawnPumpkinStep = createStep({
   id: "spawn-pumpkin",
   description: "Spawns a pumpkin in a random channel for users to grab",
-  inputSchema: emptySchema,
+  inputSchema: z.object({}),
   outputSchema: z.object({
     success: z.boolean(),
     channelId: z.string().optional(),
@@ -63,7 +61,7 @@ const spawnPumpkinStep = createStep({
 export const pumpkinHuntWorkflow = createWorkflow({
   id: "pumpkin-hunt",
   description: "Spawns pumpkins in random channels for users to collect candies",
-  inputSchema: emptySchema,
+  inputSchema: z.object({}),
   outputSchema: z.object({
     success: z.boolean(),
   }),
