@@ -4,11 +4,46 @@
 
 This is a multi-platform AI agent application built with the Mastra framework. The system creates dynamic, context-aware agents that can interact across multiple platforms including Discord, Slack, and Telegram. The agents are designed to run workflows, manage user interactions, and execute tasks using various tools and integrations.
 
-The application features a Halloween-themed Discord bot with candy collection mechanics, pumpkin hunts, and shop functionality, demonstrating the framework's capability to build engaging, stateful bot experiences.
+The application features SpookyTreatsBot - a comprehensive Halloween-themed Discord bot with extensive game mechanics including:
+- Candy collection system with passive and active earning
+- Multi-page shop with roles, powerups, and upgrades
+- Raid boss battles with health tracking
+- PVP combat system with wagers
+- Vampire infection mechanics
+- Team-based competition
+- Daily quests and rewards
+- Story mode progression
+- Inventory system with rare items
+- Profile with achievements tracking
+- Halloween trivia and riddles
+- Spooky market with chance-based items
+- The Collector NPC with bargaining
+- 25+ interactive commands
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+## Recent Changes
+
+### October 2025 - Major Feature Expansion
+- **Command System Overhaul**: Changed !givecandy to !addcandy (admin) and created new !givecandy for player-to-player transfers
+- **Advanced Combat**: Added !sraidboss command spawning 3 raid bosses (Pumpkin Lord, Haunted Scarecrow, Ghost King) with health tracking and button-based attacks
+- **Role Lore System**: !lore command provides backstories for all shop roles
+- **Comprehensive Inventory**: !inventory command with item rarities (common to mythic) and boost effects
+- **Profile & Achievements**: !profile displays stats, achievements (First Candy, Candy Hoarder, etc.), and player progression
+- **PVP System**: Player vs player battles with optional candy wagers using !pvp command
+- **Vampire Mechanics**: !bite to spread vampirism, !drinkblood for candy harvesting (6h cooldown)
+- **Team Competition**: 4 teams (Pumpkins, Ghosts, Witches, Vampires) with !team join and !teamstats leaderboard
+- **Quest System**: Daily quests with Social, Exploration, and Luck-based challenges tracked via !quests
+- **Story Mode**: Interactive narrative with !story start/stop/pause/resume controls delivering episodic content
+- **Spooky Market**: Random merchant appearances with rare item purchases using !spookymarket
+- **Halloween Trivia**: Spooky riddles and trivia with candy rewards via !trivia command
+- **The Collector**: Mysterious NPC offering trades with Accept/Bargain/Refuse button options via !offer
+- **Daily Rewards**: Role-based daily bonuses (50-200 candies) claimable with !daily
+- **Shop Expansion**: Added page 2 with Necromancer (5000 candies, 3x multiplier) and Gravekeeper (3000 candies, 2x multiplier) powerup roles
+- **Help System**: Comprehensive !commands/!help with 2-page embed showing all 25+ commands
+- **Database Schema**: Expanded to 15+ tables supporting raids, PVP, vampires, teams, quests, achievements, inventory, and events
 
 ## System Architecture
 
