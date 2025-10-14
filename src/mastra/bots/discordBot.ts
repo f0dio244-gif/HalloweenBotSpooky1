@@ -235,31 +235,54 @@ export async function initializeDiscordBot(mastra: Mastra) {
           return;
         }
         
-        if (command === "commands") {
-          const embed = new EmbedBuilder()
+        if (command === "commands" || command === "help") {
+          const embed1 = new EmbedBuilder()
             .setColor(0xe67e22)
-            .setTitle("🎃 AVAILABLE COMMANDS 🎃")
-            .setDescription("Here are all the commands you can use:")
+            .setTitle("🎃 SPOOKYTREAT BOT COMMANDS - Page 1/2 🎃")
+            .setDescription("**BASIC COMMANDS:**")
             .addFields(
               { name: "!trickortreat", value: "Get random candies or a trick (1 hour cooldown)", inline: false },
               { name: "!grab", value: "Grab a spawned pumpkin to win candies", inline: false },
-              { name: "!usepu", value: "Use a powerup from your inventory", inline: false },
               { name: "!candies", value: "Check your candy balance", inline: false },
               { name: "!history", value: "View your last 10 candy earnings", inline: false },
-              { name: "!shop", value: "Open the candy shop to buy roles and upgrades", inline: false },
+              { name: "!shop [page]", value: "Open the candy shop (use !shop 2 for powerup roles)", inline: false },
               { name: "!leaderboard", value: "View the top 10 candy collectors", inline: false },
-              { name: "!commands", value: "Show this command list", inline: false },
-              { name: "\n**ADMIN COMMANDS**", value: "\u200b", inline: false },
-              { name: "!enable", value: "Enable the bot (admin only)", inline: false },
-              { name: "!disable", value: "Disable the bot (admin only)", inline: false },
-              { name: "!pumpkininbound", value: "Spawn 5 pumpkins in random channels (admin only)", inline: false },
-              { name: "!spumpkin [number]", value: "Spawn pumpkins in current channel (admin only)", inline: false },
-              { name: "!candymodifier <±%>", value: "Adjust candy drop rates (e.g., !candymodifier 25% or !candymodifier -25%) (admin only)", inline: false },
-              { name: "!randompu @user", value: "Give a random powerup to a user (admin only)", inline: false },
-              { name: "!givecandy @user <amount>", value: "Give candies to a user (admin only)", inline: false }
+              { name: "!givecandy @user <amount>", value: "Transfer candies from your inventory to another user", inline: false },
+              { name: "\n**GAME FEATURES:**", value: "\u200b", inline: false },
+              { name: "!inventory / !inv", value: "View your items and powerups", inline: false },
+              { name: "!usepu", value: "Use a powerup from your inventory", inline: false },
+              { name: "!profile", value: "View your profile with stats and achievements", inline: false },
+              { name: "!daily", value: "Claim daily rewards based on your roles", inline: false },
+              { name: "!lore @role", value: "Learn the backstory of a shop role", inline: false }
             );
           
-          await message.reply({ embeds: [embed] });
+          const embed2 = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setTitle("🎃 SPOOKYTREAT BOT COMMANDS - Page 2/2 🎃")
+            .setDescription("**ADVANCED FEATURES:**")
+            .addFields(
+              { name: "!pvp @user [wager]", value: "Challenge someone to PVP battle", inline: false },
+              { name: "!bite @user", value: "Bite a user to turn them into a vampire (Vampire role only)", inline: false },
+              { name: "!drinkblood", value: "Drink blood to gain candies (Vampire only, 6h cooldown)", inline: false },
+              { name: "!team <name>", value: "Join a team (Pumpkins/Ghosts/Witches/Vampires)", inline: false },
+              { name: "!teamstats", value: "View team rankings and stats", inline: false },
+              { name: "!quests", value: "View and track your daily quests", inline: false },
+              { name: "!story <start|stop|pause|resume>", value: "Control story mode progression", inline: false },
+              { name: "!spookymarket", value: "Visit the mysterious traveling merchant", inline: false },
+              { name: "!trivia", value: "Start a Halloween trivia question", inline: false },
+              { name: "!offer <item_id>", value: "Offer an item to The Collector", inline: false },
+              { name: "\n**ADMIN COMMANDS:**", value: "\u200b", inline: false },
+              { name: "!addcandy @user <amount>", value: "Give candies to a user (admin)", inline: false },
+              { name: "!sraidboss", value: "Spawn a raid boss for server to fight (admin)", inline: false },
+              { name: "!resetservercandies <all|keep>", value: "Reset server candies (admin)", inline: false },
+              { name: "!enable / !disable", value: "Toggle bot on/off (admin)", inline: false },
+              { name: "!pumpkininbound", value: "Spawn 5 pumpkins in random channels (admin)", inline: false },
+              { name: "!spumpkin [count]", value: "Spawn pumpkins in current channel (admin)", inline: false },
+              { name: "!candymodifier <±%>", value: "Adjust candy drop rates (admin)", inline: false },
+              { name: "!randompu @user", value: "Give random powerup (admin)", inline: false }
+            );
+          
+          await message.reply({ embeds: [embed1, embed2] });
           logger?.info("📜 [DiscordBot] Commands list displayed", { userId });
           return;
         }
