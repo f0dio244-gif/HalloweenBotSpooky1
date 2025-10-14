@@ -1,8 +1,7 @@
-const { spawn } = require('child_process');
+import { spawn } from 'child_process';
 
 console.log('🎃 Starting Mastra dev server for Halloween Discord Bot...\n');
 
-// Start mastra dev
 const mastra = spawn('npm', ['run', 'dev'], {
   stdio: 'inherit',
   shell: true
@@ -15,10 +14,9 @@ mastra.on('error', (error) => {
 
 mastra.on('exit', (code) => {
   console.log(`\n🎃 Mastra dev server exited with code ${code}`);
-  process.exit(code);
+  process.exit(code || 0);
 });
 
-// Handle termination signals
 process.on('SIGTERM', () => {
   console.log('\n🛑 Received SIGTERM, shutting down...');
   mastra.kill('SIGTERM');
