@@ -155,6 +155,75 @@ export const addCandyTool = createTool({
   },
 });
 
+export const removeCandyTool = createTool({
+  id: "remove-candy",
+  description: "Removes candy from a user's balance",
+  inputSchema: z.object({
+    userId: z.string().describe("Discord user ID"),
+    amount: z.number().describe("Amount of candy to remove"),
+    source: z.string().optional().describe("Reason for candy removal (e.g., 'purchase', 'penalty', 'transfer')"),
+    guildId: z.string().optional().describe("Discord guild ID for reference or logging"),
+  }),
+  outputSchema: z.object({
+    newBalance: z.number(),
+  }),
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    const { userId, amount, source = "unknown", guildId } = context;
+
+    if (!sharedPgPool) throw new Error("Database pool not initialized");
+    const client = await sharedPgPool.connect();
+
+    try {
+      // Subtract candy (but don’t allow negative balances)
+      const result = await client.query(
+        `UPDATE discord_candy_balances
+         SET candy_balance = GREATEST(candy_balance - $2, 0)
+         WHERE user_id = $1
+         RETURNING candy_balance`,
+        [userId, amount]
+      );
+
+      // If no row exists, insert a new one with 0 balance (since we’re removing)
+      let newBalance: number;
+      if (result.rowCount === 0) {
+        await client.query(
+          `INSERT INTO discord_candy_balances (user_id, candy_balance)
+           VALUES ($1, 0)
+           ON CONFLICT (user_id) DO NOTHING`,
+          [userId]
+        );
+        newBalance = 0;
+      } else {
+        newBalance = result.rows[0].candy_balance;
+      }
+
+      // Log removal in history (negative amount for clarity)
+      await client.query(
+        `INSERT INTO discord_candy_history (user_id, amount, source, earned_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [userId, -Math.abs(amount), source]
+      );
+
+      logger?.info("💀 [removeCandy] Candy removed", {
+        userId,
+        amount,
+        newBalance,
+        source,
+        guildId,
+      });
+
+      return { newBalance };
+    } catch (error) {
+      logger?.error("❌ [removeCandy] Failed to remove candy", { error, userId, amount });
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+});
+
+
 export const subtractCandyTool = createTool({
   id: "subtract-candy",
   description: "Subtracts candy from a user's balance",

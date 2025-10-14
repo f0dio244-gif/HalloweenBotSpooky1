@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "mastra dev",
+    "mastra": "mastra dev",
     "build": "mastra build",
     "check": "tsc",
     "check:format": "prettier --check '**/*.ts'",
@@ -35,6 +36,7 @@
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.0",
     "exa-js": "^1.8.17",
+    "express": "^5.1.0",
     "inngest": "^3.40.2",
     "inngest-cli": "^1.11.5",
     "pino": "^9.9.4",

@@ -39,7 +39,7 @@ export const trickOrTreatTool = createTool({
         const lastUsed = new Date(cooldownCheck.rows[0].last_used);
         const now = new Date();
         const timeSinceLastUse = now.getTime() - lastUsed.getTime();
-        const cooldownDuration = 3600000;
+        const cooldownDuration = 120000;
         
         if (timeSinceLastUse < cooldownDuration) {
           const remainingTime = Math.ceil((cooldownDuration - timeSinceLastUse) / 60000);

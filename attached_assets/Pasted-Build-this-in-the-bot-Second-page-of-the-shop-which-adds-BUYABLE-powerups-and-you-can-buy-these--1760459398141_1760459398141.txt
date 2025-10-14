@@ -1,0 +1,21 @@
+Build this in the bot:
+- Second page of the shop which adds BUYABLE powerups and you can buy these roles with ids of: 1427687279601778760 (The Necromanter 🩸, 5000 candies), 1427688233138917376 (Gravekeeper 🪦, 3000 candies).
+- Raidbosses (admins can spawn with !sraidboss) 3 of them, make it so players can fight with them for candies.
+- Role Lores, !lore @role command, views the lore about the role (roles from the shop)
+- Curse Powerup (can be given with !randompu or pumpkins [also make pumpkin summon rollable from randompu]) connects two users, once one of them gets candies, the second user gets 30% of them and the player who got them keeps all of em.
+- Quests. (3 daily) e.g buy @role (has to cost less than 2k candies) Types (add more tho) Social (“Trick 5 users”) Exploration (“Type in 3 different channels”) Luck-based (“Find the Hidden Ghost 👻”)
+- !Resetservercandies all/keep command, resets all the candies in the server, once keep is selected, it will keep 30% of candies that the user have
+- Items, add an !inventory command and more. Also add rarities and boosts when used items
+- Achievements: add yours. They show on !profile (when used !profile it will show something about the user and the achievements.
+- PVP system, your ideas.
+- admins can use !bite, or everyone once per a week if has Vampire role. If you get bitten, you can spread it everywhere, vampires need to drink blood or else they will devampirize, vampires get a special +1.25x boost for candies and item drop chance.
+- Daily rewards, depends on the role. e.g The Necromanter, will give 1500 candies daily + a random item
+- Haunted cooldown. Every day, the bot will say in the channel 1414699786745024612 a countdown, at 0, it will spawn a serverwide boss.
+- Storymode, when someone uses !story start, admins can !story stop and !story pause also !story resume.
+- Potions, can see them in !inventory, usable, gives candies or effects, can be a ? potion
+- Teams, users pick a team, then at the end, the bot will count all the team members, a winning team gets 250 candies.
+- Spookymarket, a CHANCE to buy something with candies.
+- Environmental Events, random channels WHERE a role 1194335353381867541 can type, it can happen, e.g zombies are spawning, click a button to defeat one, but it has a chance to parry and attack again.
+- Halloween Trivia or Riddles, Bot asks Halloween-themed riddles: “I walk at night, yet fear the light. What am I?”, players get rewarded with candies if correctly answered.
+- replace !givecandy with !addcandy and make !givecandy take candies from your inventory and give it to someone
+- The Collector, You can !offer [item], !bargain, or !refuse. He gives rare items.

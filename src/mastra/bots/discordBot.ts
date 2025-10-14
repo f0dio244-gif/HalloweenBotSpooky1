@@ -1000,10 +1000,19 @@ export async function initializeDiscordBot(mastra: Mastra) {
     }
   };
   
-  // Check for auto-spawn every 10 seconds
-  setInterval(spawnPumpkinAutomatically, 10000);
-  // Also spawn immediately on startup
-  setTimeout(spawnPumpkinAutomatically, 5000);
+ // 🕒 Despawn pumpkins after 5 minutes (300,000 ms)
+  function schedulePumpkinDespawn(pumpkinId?: string) {
+    setTimeout(() => {
+      try {
+        // Add your despawn logic here — e.g., remove from DB or memory
+        despawnPumpkin(pumpkinId);
+        console.log(`🎃 Pumpkin ${pumpkinId ?? "(unknown)"} despawned after 5 minutes.`);
+      } catch (err) {
+        console.error("❌ Failed to despawn pumpkin:", err);
+      }
+    }, 300000); // 5 minutes
+  }
+
 
   logger?.info("🎃 [DiscordBot] Halloween Discord Bot initialized successfully!");
   

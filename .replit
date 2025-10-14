@@ -1,12 +1,15 @@
 modules = ["nodejs-22", "postgresql-16"]
 
+[run]
+command = "node keepalive.js"
+
 [agent]
 stack = "AGENT_STACK"
 integrations = ["discord:1.0.0", "agentstack-trigger-time_based:1.0.0"]
 
 [nix]
 channel = "stable-24_11"
-packages = ["jq"]
+packages = ["jq", "lsof"]
 
 [env]
 MASTRA_HIDE_CLOUD_CTA = "true"
@@ -17,12 +20,24 @@ run = ["sh", "-c", "cd .mastra/output && NODE_ENV=production node index.mjs"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
+localPort = 1111
+externalPort = 3003
+
+[[ports]]
+localPort = 1112
+externalPort = 4200
+
+[[ports]]
 localPort = 3000
 externalPort = 3000
 exposeLocalhost = true
 
 [[ports]]
 localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5050
 externalPort = 80
 
 [[ports]]
@@ -59,7 +74,7 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "mastra dev"
-waitForPort = 5000
+waitForPort = 5050
 
 [workflows.workflow.metadata]
 outputType = "automations"
@@ -75,3 +90,7 @@ waitForPort = 3000
 
 [workflows.workflow.metadata]
 outputType = "automations"
+
+[[workflows.workflow]]
+name = "Keepalive"
+author = "officialbotfr"
