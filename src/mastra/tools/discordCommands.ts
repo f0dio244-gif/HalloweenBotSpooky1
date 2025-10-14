@@ -218,32 +218,38 @@ export const trickOrTreatTool = createTool({
   },
 });
 
-// Shop command
+// Shop command with pages
 export const shopCommandTool = createTool({
   id: "shop-command",
   description: "Handles the !shop command - displays available roles with buttons",
   inputSchema: z.object({
     userId: z.string(),
     message: z.any(),
+    page: z.number().optional().default(1),
   }),
   outputSchema: z.object({
     result: z.string(),
   }),
   execute: async ({ context, mastra }) => {
     const logger = mastra?.getLogger();
-    const { userId, message } = context;
+    const { userId, message, page = 1 } = context;
     
-    logger?.info("🛒 [shopCommand] Command executed", { userId });
+    logger?.info("🛒 [shopCommand] Command executed", { userId, page });
     
     const runtimeContext = new RuntimeContext();
     
-    const shopItems = [
+    const page1Items = [
       { name: "🎃 Pumpkin Collector", cost: 250, roleId: "1424363966645403739", type: "role" },
       { name: "👻 Ghost", cost: 500, roleId: "1424364014623785041", type: "role" },
       { name: "💀 Skeleton", cost: 750, roleId: "1424364031560388638", type: "role" },
       { name: "🧛 Vampire", cost: 1000, roleId: "1424364049956737126", type: "role" },
       { name: "🧙 Witch", cost: 1500, roleId: "1424364070710018058", type: "role" },
       { name: "👑 Pumpkin King", cost: 2000, roleId: "1424364095070666802", type: "role" },
+    ];
+    
+    const page2Items = [
+      { name: "🩸 The Necromancer", cost: 5000, roleId: "1427687279601778760", type: "powerup_role", description: "Powerful necromancer role with special abilities" },
+      { name: "🪦 Gravekeeper", cost: 3000, roleId: "1427688233138917376", type: "powerup_role", description: "Guardian of the graveyard" },
     ];
     
     // Get current upgrade level
@@ -260,16 +266,6 @@ export const shopCommandTool = createTool({
       dbClient.release();
     }
     
-    // Add upgrade item with escalating cost
-    const upgradeCost = 500 + (upgradeLevel * 300);
-    const upgradeBonus = (upgradeLevel + 1) * 25;
-    shopItems.push({ 
-      name: `⭐ Candy Boost Upgrade (Lv ${upgradeLevel + 1})`, 
-      cost: upgradeCost, 
-      roleId: "upgrade",
-      type: "upgrade"
-    });
-    
     const { balance } = await getCandyBalanceTool.execute({
       context: { userId },
       runtimeContext,
@@ -278,50 +274,112 @@ export const shopCommandTool = createTool({
     
     const currentMultiplier = 1 + (upgradeLevel * 0.25);
     
+    let shopItems: any[] = [];
+    let pageTitle = "";
+    
+    if (page === 1) {
+      shopItems = [...page1Items];
+      
+      // Add upgrade item with escalating cost
+      const upgradeCost = 500 + (upgradeLevel * 300);
+      const upgradeBonus = (upgradeLevel + 1) * 25;
+      shopItems.push({ 
+        name: `⭐ Candy Boost Upgrade (Lv ${upgradeLevel + 1})`, 
+        cost: upgradeCost, 
+        roleId: "upgrade",
+        type: "upgrade",
+        description: `+${upgradeBonus}% candy earnings`
+      });
+      
+      pageTitle = "🎃 HALLOWEEN CANDY SHOP - Page 1/2 🎃";
+    } else {
+      shopItems = [...page2Items];
+      pageTitle = "🎃 HALLOWEEN CANDY SHOP - Page 2/2 (Powerups) 🎃";
+    }
+    
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
-      .setTitle("🎃 HALLOWEEN CANDY SHOP 🎃")
+      .setTitle(pageTitle)
       .setDescription(`Your balance: **${balance} candies** 🍬\nCurrent Candy Multiplier: **x${currentMultiplier.toFixed(2)}**\n\nClick a button below to purchase!`)
       .addFields(
         shopItems.map((item, index) => ({
           name: item.name,
-          value: item.type === "role" 
-            ? `**${item.cost} candies** - Role` 
-            : `**${item.cost} candies** - Upgrade (+${upgradeBonus}% candy earnings)`,
+          value: item.type === "role" || item.type === "powerup_role"
+            ? `**${item.cost} candies** - ${item.description || 'Role'}` 
+            : `**${item.cost} candies** - ${item.description || 'Upgrade'}`,
           inline: true,
         }))
       );
     
-    const row1 = new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(
-        shopItems.slice(0, 3).map((item, index) =>
-          new ButtonBuilder()
-            .setCustomId(`shop_buy_${index}`)
-            .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
-            .setStyle(ButtonStyle.Primary)
-        )
-      );
+    const components: ActionRowBuilder<ButtonBuilder>[] = [];
     
-    const row2 = new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(
-        shopItems.slice(3, 6).map((item, index) =>
+    // Create buy buttons
+    if (page === 1) {
+      const row1 = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+          shopItems.slice(0, 3).map((item, index) =>
+            new ButtonBuilder()
+              .setCustomId(`shop_p${page}_${index}`)
+              .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+              .setStyle(ButtonStyle.Primary)
+          )
+        );
+      
+      const row2 = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+          shopItems.slice(3, 6).map((item, index) =>
+            new ButtonBuilder()
+              .setCustomId(`shop_p${page}_${index + 3}`)
+              .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+              .setStyle(ButtonStyle.Primary)
+          )
+        );
+      
+      const row3 = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
           new ButtonBuilder()
-            .setCustomId(`shop_buy_${index + 3}`)
-            .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
-            .setStyle(ButtonStyle.Primary)
-        )
-      );
+            .setCustomId(`shop_p${page}_6`)
+            .setLabel(shopItems[6].name.length > 80 ? shopItems[6].name.substring(0, 77) + "..." : shopItems[6].name)
+            .setStyle(ButtonStyle.Success)
+        );
+      
+      components.push(row1, row2, row3);
+    } else {
+      const row1 = new ActionRowBuilder<ButtonBuilder>()
+        .addComponents(
+          shopItems.map((item, index) =>
+            new ButtonBuilder()
+              .setCustomId(`shop_p${page}_${index}`)
+              .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+              .setStyle(ButtonStyle.Primary)
+          )
+        );
+      
+      components.push(row1);
+    }
     
-    const row3 = new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(
+    // Navigation row
+    const navRow = new ActionRowBuilder<ButtonBuilder>();
+    if (page === 1) {
+      navRow.addComponents(
         new ButtonBuilder()
-          .setCustomId("shop_buy_6")
-          .setLabel(shopItems[6].name.length > 80 ? shopItems[6].name.substring(0, 77) + "..." : shopItems[6].name)
-          .setStyle(ButtonStyle.Success)
+          .setCustomId("shop_next_page")
+          .setLabel("Next Page →")
+          .setStyle(ButtonStyle.Secondary)
       );
+    } else {
+      navRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId("shop_prev_page")
+          .setLabel("← Previous Page")
+          .setStyle(ButtonStyle.Secondary)
+      );
+    }
     
-    await message.reply({ embeds: [embed], components: [row1, row2, row3] });
-    logger?.info("🛒 [shopCommand] Displayed shop", { userId, balance, upgradeLevel });
+    components.push(navRow);
+    
+    await message.reply({ embeds: [embed], components });
+    logger?.info("🛒 [shopCommand] Displayed shop", { userId, balance, upgradeLevel, page });
     return { result: "shop_displayed" };
   },
 });
@@ -329,7 +387,7 @@ export const shopCommandTool = createTool({
 // Shop button handler
 export const shopButtonTool = createTool({
   id: "shop-button",
-  description: "Handles shop button purchases",
+  description: "Handles shop button purchases and navigation",
   inputSchema: z.object({
     userId: z.string(),
     customId: z.string(),
@@ -346,7 +404,158 @@ export const shopButtonTool = createTool({
     
     const runtimeContext = new RuntimeContext();
     
-    const shopItems = [
+    // Handle navigation
+    if (customId === "shop_next_page" || customId === "shop_prev_page") {
+      const newPage = customId === "shop_next_page" ? 2 : 1;
+      
+      // Get updated balance and multiplier for the embed
+      const page1Items = [
+        { name: "🎃 Pumpkin Collector", cost: 250, roleId: "1424363966645403739", type: "role" },
+        { name: "👻 Ghost", cost: 500, roleId: "1424364014623785041", type: "role" },
+        { name: "💀 Skeleton", cost: 750, roleId: "1424364031560388638", type: "role" },
+        { name: "🧛 Vampire", cost: 1000, roleId: "1424364049956737126", type: "role" },
+        { name: "🧙 Witch", cost: 1500, roleId: "1424364070710018058", type: "role" },
+        { name: "👑 Pumpkin King", cost: 2000, roleId: "1424364095070666802", type: "role" },
+      ];
+      
+      const page2Items = [
+        { name: "🩸 The Necromancer", cost: 5000, roleId: "1427687279601778760", type: "powerup_role", description: "Powerful necromancer role with special abilities" },
+        { name: "🪦 Gravekeeper", cost: 3000, roleId: "1427688233138917376", type: "powerup_role", description: "Guardian of the graveyard" },
+      ];
+      
+      if (!sharedPgPool) throw new Error("Database pool not initialized");
+      const dbClient = await sharedPgPool.connect();
+      let upgradeLevel = 0;
+      try {
+        const upgradeResult = await dbClient.query(
+          "SELECT upgrade_level FROM discord_candy_upgrades WHERE user_id = $1",
+          [userId]
+        );
+        upgradeLevel = upgradeResult.rows[0]?.upgrade_level || 0;
+      } finally {
+        dbClient.release();
+      }
+      
+      const { balance } = await getCandyBalanceTool.execute({
+        context: { userId },
+        runtimeContext,
+        mastra,
+      });
+      
+      const currentMultiplier = 1 + (upgradeLevel * 0.25);
+      
+      let shopItems: any[] = [];
+      let pageTitle = "";
+      
+      if (newPage === 1) {
+        shopItems = [...page1Items];
+        const upgradeCost = 500 + (upgradeLevel * 300);
+        const upgradeBonus = (upgradeLevel + 1) * 25;
+        shopItems.push({ 
+          name: `⭐ Candy Boost Upgrade (Lv ${upgradeLevel + 1})`, 
+          cost: upgradeCost, 
+          roleId: "upgrade",
+          type: "upgrade",
+          description: `+${upgradeBonus}% candy earnings`
+        });
+        pageTitle = "🎃 HALLOWEEN CANDY SHOP - Page 1/2 🎃";
+      } else {
+        shopItems = [...page2Items];
+        pageTitle = "🎃 HALLOWEEN CANDY SHOP - Page 2/2 (Powerups) 🎃";
+      }
+      
+      const embed = new EmbedBuilder()
+        .setColor(EMBED_COLOR)
+        .setTitle(pageTitle)
+        .setDescription(`Your balance: **${balance} candies** 🍬\nCurrent Candy Multiplier: **x${currentMultiplier.toFixed(2)}**\n\nClick a button below to purchase!`)
+        .addFields(
+          shopItems.map((item, index) => ({
+            name: item.name,
+            value: item.type === "role" || item.type === "powerup_role"
+              ? `**${item.cost} candies** - ${item.description || 'Role'}` 
+              : `**${item.cost} candies** - ${item.description || 'Upgrade'}`,
+            inline: true,
+          }))
+        );
+      
+      const components: ActionRowBuilder<ButtonBuilder>[] = [];
+      
+      // Create buy buttons
+      if (newPage === 1) {
+        const row1 = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            shopItems.slice(0, 3).map((item, index) =>
+              new ButtonBuilder()
+                .setCustomId(`shop_p${newPage}_${index}`)
+                .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+                .setStyle(ButtonStyle.Primary)
+            )
+          );
+        
+        const row2 = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            shopItems.slice(3, 6).map((item, index) =>
+              new ButtonBuilder()
+                .setCustomId(`shop_p${newPage}_${index + 3}`)
+                .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+                .setStyle(ButtonStyle.Primary)
+            )
+          );
+        
+        const row3 = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`shop_p${newPage}_6`)
+              .setLabel(shopItems[6].name.length > 80 ? shopItems[6].name.substring(0, 77) + "..." : shopItems[6].name)
+              .setStyle(ButtonStyle.Success)
+          );
+        
+        components.push(row1, row2, row3);
+      } else {
+        const row1 = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            shopItems.map((item, index) =>
+              new ButtonBuilder()
+                .setCustomId(`shop_p${newPage}_${index}`)
+                .setLabel(item.name.length > 80 ? item.name.substring(0, 77) + "..." : item.name)
+                .setStyle(ButtonStyle.Primary)
+            )
+          );
+        
+        components.push(row1);
+      }
+      
+      // Navigation row
+      const navRow = new ActionRowBuilder<ButtonBuilder>();
+      if (newPage === 1) {
+        navRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId("shop_next_page")
+            .setLabel("Next Page →")
+            .setStyle(ButtonStyle.Secondary)
+        );
+      } else {
+        navRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId("shop_prev_page")
+            .setLabel("← Previous Page")
+            .setStyle(ButtonStyle.Secondary)
+        );
+      }
+      
+      components.push(navRow);
+      
+      await interaction.update({ embeds: [embed], components });
+      logger?.info("🛒 [shopButton] Navigated to page", { userId, newPage });
+      return { result: "navigation_successful" };
+    }
+    
+    // Handle purchase
+    const parts = customId.split("_");
+    const page = parseInt(parts[1].replace("p", ""));
+    const itemIndex = parseInt(parts[2]);
+    
+    const page1Items = [
       { name: "🎃 Pumpkin Collector", cost: 250, roleId: "1424363966645403739", type: "role" },
       { name: "👻 Ghost", cost: 500, roleId: "1424364014623785041", type: "role" },
       { name: "💀 Skeleton", cost: 750, roleId: "1424364031560388638", type: "role" },
@@ -355,31 +564,41 @@ export const shopButtonTool = createTool({
       { name: "👑 Pumpkin King", cost: 2000, roleId: "1424364095070666802", type: "role" },
     ];
     
-    // Get current upgrade level
-    if (!sharedPgPool) throw new Error("Database pool not initialized");
-    const dbClient = await sharedPgPool.connect();
-    let upgradeLevel = 0;
-    try {
-      const upgradeResult = await dbClient.query(
-        "SELECT upgrade_level FROM discord_candy_upgrades WHERE user_id = $1",
-        [userId]
-      );
-      upgradeLevel = upgradeResult.rows[0]?.upgrade_level || 0;
-    } finally {
-      dbClient.release();
+    const page2Items = [
+      { name: "🩸 The Necromancer", cost: 5000, roleId: "1427687279601778760", type: "powerup_role" },
+      { name: "🪦 Gravekeeper", cost: 3000, roleId: "1427688233138917376", type: "powerup_role" },
+    ];
+    
+    let shopItems: any[] = [];
+    
+    if (page === 1) {
+      shopItems = [...page1Items];
+      
+      if (!sharedPgPool) throw new Error("Database pool not initialized");
+      const dbClient = await sharedPgPool.connect();
+      let upgradeLevel = 0;
+      try {
+        const upgradeResult = await dbClient.query(
+          "SELECT upgrade_level FROM discord_candy_upgrades WHERE user_id = $1",
+          [userId]
+        );
+        upgradeLevel = upgradeResult.rows[0]?.upgrade_level || 0;
+      } finally {
+        dbClient.release();
+      }
+      
+      const upgradeCost = 500 + (upgradeLevel * 300);
+      const upgradeBonus = (upgradeLevel + 1) * 25;
+      shopItems.push({ 
+        name: `⭐ Candy Boost Upgrade (Lv ${upgradeLevel + 1})`, 
+        cost: upgradeCost, 
+        roleId: "upgrade",
+        type: "upgrade"
+      });
+    } else {
+      shopItems = [...page2Items];
     }
     
-    // Add upgrade item with escalating cost
-    const upgradeCost = 500 + (upgradeLevel * 300);
-    const upgradeBonus = (upgradeLevel + 1) * 25;
-    shopItems.push({ 
-      name: `⭐ Candy Boost Upgrade (Lv ${upgradeLevel + 1})`, 
-      cost: upgradeCost, 
-      roleId: "upgrade",
-      type: "upgrade"
-    });
-    
-    const itemIndex = parseInt(customId.split("_")[2]);
     if (isNaN(itemIndex) || itemIndex < 0 || itemIndex >= shopItems.length) {
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLOR)
@@ -424,6 +643,12 @@ export const shopButtonTool = createTool({
     if (item.type === "upgrade") {
       const upgradeClient = await sharedPgPool!.connect();
       try {
+        const currentUpgradeResult = await upgradeClient.query(
+          `SELECT upgrade_level FROM discord_candy_upgrades WHERE user_id = $1`,
+          [userId]
+        );
+        const currentUpgradeLevel = currentUpgradeResult.rows[0]?.upgrade_level || 0;
+        
         await upgradeClient.query(
           `INSERT INTO discord_candy_upgrades (user_id, upgrade_level)
            VALUES ($1, 1)
@@ -432,13 +657,16 @@ export const shopButtonTool = createTool({
           [userId]
         );
         
-        const newMultiplier = 1 + ((upgradeLevel + 1) * 0.25);
+        const newLevel = currentUpgradeLevel + 1;
+        const newMultiplier = 1 + (newLevel * 0.25);
+        const upgradeBonus = newLevel * 25;
+        
         const embed = new EmbedBuilder()
           .setColor(EMBED_COLOR)
           .setDescription(`✅ **Upgrade purchased!** 🌟\nYour candy multiplier is now **x${newMultiplier.toFixed(2)}**!\nYou now earn **${upgradeBonus}% more candies** from all sources!\nRemaining balance: **${newBalance} candies**`);
         
         await interaction.reply({ embeds: [embed], ephemeral: true });
-        logger?.info("🛒 [shopButton] Upgrade purchased", { userId, newLevel: upgradeLevel + 1, newBalance });
+        logger?.info("🛒 [shopButton] Upgrade purchased", { userId, newLevel, newBalance });
       } finally {
         upgradeClient.release();
       }

@@ -1,7 +1,11 @@
 import { Mastra } from "@mastra/core";
 import { registerDiscordTrigger } from "../../triggers/discordTriggers";
 import { trickOrTreatTool, shopCommandTool, grabCommandTool, shopButtonTool, pumpkinInboundCommandTool, spawnPumpkinCommandTool } from "../tools/discordCommands";
-import { addCandyTool } from "../tools/candyManager";
+import { addCandyTool, subtractCandyTool, getCandyBalanceTool } from "../tools/candyManager";
+import { loreCommandTool, raidBossCommandTool, raidAttackButtonTool, resetServerCandiesCommandTool } from "../tools/extendedCommands";
+import { inventoryCommandTool, profileCommandTool, pvpChallengeCommandTool, pvpButtonTool, dailyRewardsCommandTool } from "../tools/inventoryAndProfile";
+import { biteCommandTool, drinkBloodCommandTool, teamJoinCommandTool, teamStatsCommandTool } from "../tools/vampireAndTeams";
+import { viewQuestsCommandTool, storyModeCommandTool, spookyMarketCommandTool, triviaCommandTool, collectorOfferCommandTool } from "../tools/questsAndEvents";
 import { RuntimeContext } from "@mastra/core/di";
 import { EmbedBuilder, MessageFlags } from "discord.js";
 import { sharedPgPool } from "../storage";
@@ -67,8 +71,9 @@ export async function initializeDiscordBot(mastra: Mastra) {
         }
         
         if (command === "shop") {
+          const page = parseInt(args[0]) || 1;
           await shopCommandTool.execute({
-            context: { userId, message },
+            context: { userId, message, page },
             runtimeContext,
             mastra,
           });
@@ -457,12 +462,13 @@ export async function initializeDiscordBot(mastra: Mastra) {
           return;
         }
         
-        if (command === "givecandy") {
+        // Changed !givecandy to !addcandy for admin use
+        if (command === "addcandy") {
           const member = message.member as any;
           if (!member?.permissions?.has("Administrator")) {
             const embed = new EmbedBuilder()
               .setColor(0xe67e22)
-              .setDescription("❌ Only administrators can give candies!");
+              .setDescription("❌ Only administrators can add candies!");
             
             await message.reply({ embeds: [embed] });
             return;
@@ -474,7 +480,7 @@ export async function initializeDiscordBot(mastra: Mastra) {
           if (!targetUser || isNaN(amount) || amount <= 0) {
             const embed = new EmbedBuilder()
               .setColor(0xe67e22)
-              .setDescription("❌ Invalid usage! Format: `!givecandy @user <amount>`");
+              .setDescription("❌ Invalid usage! Format: `!addcandy @user <amount>`");
             
             await message.reply({ embeds: [embed] });
             return;
@@ -491,7 +497,75 @@ export async function initializeDiscordBot(mastra: Mastra) {
             .setDescription(`🍬 **${targetUser.username}** received **${amount} candies** from an admin! New balance: **${newBalance} candies**`);
           
           await message.reply({ embeds: [embed] });
-          logger?.info("🍬 [DiscordBot] Candies given by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
+          logger?.info("🍬 [DiscordBot] Candies added by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
+          return;
+        }
+        
+        // New !givecandy - transfer from user's inventory
+        if (command === "givecandy") {
+          const targetUser = message.mentions.users.first();
+          const amount = parseInt(args[1]);
+          
+          if (!targetUser || isNaN(amount) || amount <= 0) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Invalid usage! Format: `!givecandy @user <amount>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          if (targetUser.id === userId) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ You can't give candies to yourself!");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const { balance } = await getCandyBalanceTool.execute({
+            context: { userId },
+            runtimeContext,
+            mastra,
+          });
+          
+          if (balance < amount) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription(`❌ You don't have enough candies! You have **${balance}** but tried to give **${amount}**.`);
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const { success } = await subtractCandyTool.execute({
+            context: { userId, amount },
+            runtimeContext,
+            mastra,
+          });
+          
+          if (!success) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Failed to transfer candies!");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const { newBalance } = await addCandyTool.execute({
+            context: { userId: targetUser.id, amount, source: "player_gift", guildId },
+            runtimeContext,
+            mastra,
+          });
+          
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`🎁 **${username}** gave **${amount} candies** to **${targetUser.username}**!\n\n**${targetUser.username}** now has **${newBalance} candies**!`);
+          
+          await message.reply({ embeds: [embed] });
+          logger?.info("🎁 [DiscordBot] Candies transferred between users", { from: userId, to: targetUser.id, amount });
           return;
         }
         
@@ -609,6 +683,202 @@ export async function initializeDiscordBot(mastra: Mastra) {
           } finally {
             client.release();
           }
+          return;
+        }
+        
+        // Lore command
+        if (command === "lore") {
+          const roleId = message.mentions.roles.first()?.id;
+          await loreCommandTool.execute({
+            context: { userId, message, roleId },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Raid boss command
+        if (command === "sraidboss") {
+          await raidBossCommandTool.execute({
+            context: { userId, guildId, channelId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Reset server candies command
+        if (command === "resetservercandies") {
+          const mode = args[0] === "keep" ? "keep" : "all";
+          await resetServerCandiesCommandTool.execute({
+            context: { userId, guildId, message, mode },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Inventory command
+        if (command === "inventory" || command === "inv") {
+          await inventoryCommandTool.execute({
+            context: { userId, guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Profile command
+        if (command === "profile") {
+          await profileCommandTool.execute({
+            context: { userId, username, guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // PVP command
+        if (command === "pvp") {
+          const targetUserId = message.mentions.users.first()?.id;
+          const wager = parseInt(args[1]) || 0;
+          await pvpChallengeCommandTool.execute({
+            context: { userId, username, guildId, targetUserId, wager, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Bite command
+        if (command === "bite") {
+          const member = message.member as any;
+          const userRoles = member?.roles.cache.map((r: any) => r.id) || [];
+          const targetUserId = message.mentions.users.first()?.id;
+          await biteCommandTool.execute({
+            context: { userId, username, guildId, targetUserId, message, userRoles },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Drink blood command
+        if (command === "drinkblood") {
+          await drinkBloodCommandTool.execute({
+            context: { userId, guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Team join command
+        if (command === "team") {
+          const teamName = args[0];
+          if (!teamName) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Please specify a team! Usage: `!team <Pumpkins|Ghosts|Witches|Vampires>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          await teamJoinCommandTool.execute({
+            context: { userId, guildId, teamName, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Team stats command
+        if (command === "teamstats") {
+          await teamStatsCommandTool.execute({
+            context: { guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // View quests command
+        if (command === "quests") {
+          await viewQuestsCommandTool.execute({
+            context: { userId, guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Story mode commands
+        if (command === "story") {
+          const action = args[0] as "start" | "stop" | "pause" | "resume";
+          if (!["start", "stop", "pause", "resume"].includes(action)) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Usage: `!story <start|stop|pause|resume>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          await storyModeCommandTool.execute({
+            context: { userId, guildId, action, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Spooky market command
+        if (command === "spookymarket") {
+          await spookyMarketCommandTool.execute({
+            context: { userId, guildId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Trivia command
+        if (command === "trivia") {
+          await triviaCommandTool.execute({
+            context: { guildId, channelId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Collector offer command
+        if (command === "offer") {
+          const itemId = parseInt(args[0]);
+          if (isNaN(itemId)) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Usage: `!offer <item_id>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          await collectorOfferCommandTool.execute({
+            context: { userId, guildId, itemId, message },
+            runtimeContext,
+            mastra,
+          });
+          return;
+        }
+        
+        // Daily rewards command
+        if (command === "daily") {
+          const member = message.member as any;
+          const userRoles = member?.roles.cache.map((r: any) => r.id) || [];
+          await dailyRewardsCommandTool.execute({
+            context: { userId, guildId, message, userRoles },
+            runtimeContext,
+            mastra,
+          });
           return;
         }
       }
@@ -826,14 +1096,215 @@ export async function initializeDiscordBot(mastra: Mastra) {
       }
       
       const runtimeContext = new RuntimeContext();
+      const username = interaction.user?.username || "Unknown";
       
       // Handle shop button clicks
-      if (customId.startsWith("shop_buy_")) {
+      if (customId.startsWith("shop_")) {
         await shopButtonTool.execute({
           context: { userId, customId, interaction },
           runtimeContext,
           mastra,
         });
+        return;
+      }
+      
+      // Handle raid boss attack buttons
+      if (customId.startsWith("raid_attack_")) {
+        await raidAttackButtonTool.execute({
+          context: { userId, username, guildId, customId, interaction },
+          runtimeContext,
+          mastra,
+        });
+        return;
+      }
+      
+      // Handle PVP buttons
+      if (customId.startsWith("pvp_")) {
+        await pvpButtonTool.execute({
+          context: { userId, username, customId, interaction },
+          runtimeContext,
+          mastra,
+        });
+        return;
+      }
+      
+      // Handle spooky market buttons
+      if (customId.startsWith("market_")) {
+        const buttonInteraction = interaction as any;
+        if (customId === "market_decline") {
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription("🎪 *The mysterious merchant disappears into the shadows...*");
+          
+          await buttonInteraction.update({ embeds: [embed], components: [] });
+          return;
+        }
+        
+        const parts = customId.split("_");
+        const itemName = parts[2];
+        const cost = parseInt(parts[3]);
+        const rarity = parts[4];
+        
+        const { balance } = await getCandyBalanceTool.execute({
+          context: { userId },
+          runtimeContext,
+          mastra,
+        });
+        
+        if (balance < cost) {
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`❌ You need **${cost} candies** but only have **${balance}**!`);
+          
+          await buttonInteraction.reply({ embeds: [embed], ephemeral: true });
+          return;
+        }
+        
+        await subtractCandyTool.execute({
+          context: { userId, amount: cost },
+          runtimeContext,
+          mastra,
+        });
+        
+        const client = await sharedPgPool!.connect();
+        try {
+          await client.query(
+            `INSERT INTO discord_items (user_id, guild_id, item_name, item_type, rarity)
+             VALUES ($1, $2, $3, 'special', $4)`,
+            [userId, guildId, itemName, rarity]
+          );
+        } finally {
+          client.release();
+        }
+        
+        const embed = new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setDescription(`🎪 **Purchase successful!** You acquired **${itemName}** (${rarity})!\n\n*The merchant vanishes with a mysterious smile...*`);
+        
+        await buttonInteraction.update({ embeds: [embed], components: [] });
+        return;
+      }
+      
+      // Handle collector buttons
+      if (customId.startsWith("collector_")) {
+        const buttonInteraction = interaction as any;
+        const parts = customId.split("_");
+        const action = parts[1];
+        const offerId = parseInt(parts[2]);
+        
+        const client = await sharedPgPool!.connect();
+        try {
+          const offerResult = await client.query(
+            `SELECT * FROM discord_collector_offers WHERE id = $1 AND active = true`,
+            [offerId]
+          );
+          
+          if (offerResult.rows.length === 0) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ This offer is no longer available!");
+            
+            await buttonInteraction.reply({ embeds: [embed], ephemeral: true });
+            return;
+          }
+          
+          const offer = offerResult.rows[0];
+          
+          if (userId !== offer.user_id) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ This offer is not for you!");
+            
+            await buttonInteraction.reply({ embeds: [embed], ephemeral: true });
+            return;
+          }
+          
+          if (action === "refuse") {
+            await client.query(
+              `UPDATE discord_collector_offers SET active = false WHERE id = $1`,
+              [offerId]
+            );
+            
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription(`🎩 *The Collector nods and fades into the mist...*`);
+            
+            await buttonInteraction.update({ embeds: [embed], components: [] });
+          } else if (action === "accept") {
+            await client.query(
+              `UPDATE discord_items SET used = true WHERE id = $1`,
+              [offer.offered_item_id]
+            );
+            
+            await client.query(
+              `INSERT INTO discord_items (user_id, guild_id, item_name, item_type, rarity)
+               VALUES ($1, $2, $3, 'collector_reward', $4)`,
+              [userId, guildId, offer.reward_item_name, offer.reward_item_rarity]
+            );
+            
+            await client.query(
+              `UPDATE discord_collector_offers SET active = false WHERE id = $1`,
+              [offerId]
+            );
+            
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setTitle("🎩 DEAL ACCEPTED! 🎩")
+              .setDescription(`*The Collector smiles and hands you the **${offer.reward_item_name}** (${offer.reward_item_rarity})...*\n\n"A pleasure doing business with you..."`);
+            
+            await buttonInteraction.update({ embeds: [embed], components: [] });
+          } else if (action === "bargain") {
+            // 50% chance bargain works
+            if (Math.random() < 0.5) {
+              const rarityUpgrade: { [key: string]: string } = {
+                uncommon: "rare",
+                rare: "epic",
+                epic: "legendary",
+                legendary: "mythic",
+              };
+              
+              const newRarity = rarityUpgrade[offer.reward_item_rarity] || "legendary";
+              
+              await client.query(
+                `UPDATE discord_items SET used = true WHERE id = $1`,
+                [offer.offered_item_id]
+              );
+              
+              await client.query(
+                `INSERT INTO discord_items (user_id, guild_id, item_name, item_type, rarity)
+                 VALUES ($1, $2, $3, 'collector_reward', $4)`,
+                [userId, guildId, offer.reward_item_name, newRarity]
+              );
+              
+              await client.query(
+                `UPDATE discord_collector_offers SET active = false WHERE id = $1`,
+                [offerId]
+              );
+              
+              const embed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setTitle("🎩 BARGAIN SUCCESSFUL! 🎩")
+                .setDescription(`*The Collector chuckles...*\n\n"You drive a hard bargain! Very well, take the **${offer.reward_item_name}** (${newRarity}) instead!"`);
+              
+              await buttonInteraction.update({ embeds: [embed], components: [] });
+            } else {
+              await client.query(
+                `UPDATE discord_collector_offers SET active = false WHERE id = $1`,
+                [offerId]
+              );
+              
+              const embed = new EmbedBuilder()
+                .setColor(0xe67e22)
+                .setTitle("🎩 BARGAIN FAILED! 🎩")
+                .setDescription(`*The Collector frowns...*\n\n"I don't appreciate greed. The deal is off!"\n\n*He vanishes with your item...*`);
+              
+              await buttonInteraction.update({ embeds: [embed], components: [] });
+            }
+          }
+        } finally {
+          client.release();
+          }
+        return;
       }
     },
   });
