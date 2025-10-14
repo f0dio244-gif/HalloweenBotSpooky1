@@ -1494,19 +1494,6 @@ export async function initializeDiscordBot(mastra: Mastra) {
     }
   };
   
- // 🕒 Despawn pumpkins after 5 minutes (300,000 ms)
-  function schedulePumpkinDespawn(pumpkinId?: string) {
-    setTimeout(() => {
-      try {
-        // Add your despawn logic here — e.g., remove from DB or memory
-        despawnPumpkin(pumpkinId);
-        console.log(`🎃 Pumpkin ${pumpkinId ?? "(unknown)"} despawned after 5 minutes.`);
-      } catch (err) {
-        console.error("❌ Failed to despawn pumpkin:", err);
-      }
-    }, 300000); // 5 minutes
-  }
-
 
   logger?.info("🎃 [DiscordBot] Halloween Discord Bot initialized successfully!");
   
