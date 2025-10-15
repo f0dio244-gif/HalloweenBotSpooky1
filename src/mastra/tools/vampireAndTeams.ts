@@ -146,6 +146,36 @@ export const drinkBloodCommandTool = createTool({
     logger?.info("🩸 [drinkBlood] Command executed", { userId, guildId });
     
     if (!sharedPgPool) throw new Error("Database pool not initialized");
+    
+    // Check cooldown (6 hours)
+    const cooldownClient = await sharedPgPool.connect();
+    try {
+      const cooldownCheck = await cooldownClient.query(
+        "SELECT last_used FROM discord_cooldowns WHERE user_id = $1 AND command = 'drinkblood'",
+        [userId]
+      );
+      
+      if (cooldownCheck.rows.length > 0) {
+        const lastUsed = new Date(cooldownCheck.rows[0].last_used);
+        const now = new Date();
+        const timeSinceLastUse = now.getTime() - lastUsed.getTime();
+        const cooldownDuration = 21600000; // 6 hours in milliseconds
+        
+        if (timeSinceLastUse < cooldownDuration) {
+          const remainingTime = Math.ceil((cooldownDuration - timeSinceLastUse) / 3600000);
+          const embed = new EmbedBuilder()
+            .setColor(EMBED_COLOR)
+            .setDescription(`⏰ You need to wait **${remainingTime} hours** before drinking blood again!`);
+          
+          await message.reply({ embeds: [embed] });
+          logger?.info("🩸 [drinkBlood] Cooldown active", { userId, remainingTime });
+          return { result: "cooldown_active" };
+        }
+      }
+    } finally {
+      cooldownClient.release();
+    }
+    
     const client = await sharedPgPool.connect();
     try {
       const vampireCheck = await client.query(
@@ -181,6 +211,21 @@ export const drinkBloodCommandTool = createTool({
       
       await message.reply({ embeds: [embed] });
       logger?.info("🩸 [drinkBlood] Blood consumed", { userId, candyReward });
+      
+      // Update cooldown
+      const updateCooldownClient = await sharedPgPool.connect();
+      try {
+        await updateCooldownClient.query(
+          `INSERT INTO discord_cooldowns (user_id, command, last_used)
+           VALUES ($1, 'drinkblood', NOW())
+           ON CONFLICT (user_id, command)
+           DO UPDATE SET last_used = NOW()`,
+          [userId]
+        );
+        logger?.info("🩸 [drinkBlood] Cooldown updated", { userId });
+      } finally {
+        updateCooldownClient.release();
+      }
     } finally {
       client.release();
     }

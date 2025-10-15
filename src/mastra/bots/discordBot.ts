@@ -1,7 +1,7 @@
 import { Mastra } from "@mastra/core";
 import { registerDiscordTrigger } from "../../triggers/discordTriggers";
 import { trickOrTreatTool, shopCommandTool, grabCommandTool, shopButtonTool, pumpkinInboundCommandTool, spawnPumpkinCommandTool } from "../tools/discordCommands";
-import { addCandyTool, subtractCandyTool, getCandyBalanceTool } from "../tools/candyManager";
+import { addCandyTool, subtractCandyTool, getCandyBalanceTool, removeCandyTool } from "../tools/candyManager";
 import { loreCommandTool, raidBossCommandTool, raidAttackButtonTool, resetServerCandiesCommandTool } from "../tools/extendedCommands";
 import { inventoryCommandTool, profileCommandTool, pvpChallengeCommandTool, pvpButtonTool, dailyRewardsCommandTool } from "../tools/inventoryAndProfile";
 import { biteCommandTool, drinkBloodCommandTool, teamJoinCommandTool, teamStatsCommandTool } from "../tools/vampireAndTeams";
@@ -273,6 +273,7 @@ export async function initializeDiscordBot(mastra: Mastra) {
               { name: "!offer <item_id>", value: "Offer an item to The Collector", inline: false },
               { name: "\n**ADMIN COMMANDS:**", value: "\u200b", inline: false },
               { name: "!addcandy @user <amount>", value: "Give candies to a user (admin)", inline: false },
+              { name: "!removecandy @user <amount>", value: "Remove candies from a user (admin)", inline: false },
               { name: "!sraidboss", value: "Spawn a raid boss for server to fight (admin)", inline: false },
               { name: "!resetservercandies <all|keep>", value: "Reset server candies (admin)", inline: false },
               { name: "!enable / !disable", value: "Toggle bot on/off (admin)", inline: false },
@@ -521,6 +522,45 @@ export async function initializeDiscordBot(mastra: Mastra) {
           
           await message.reply({ embeds: [embed] });
           logger?.info("🍬 [DiscordBot] Candies added by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
+          return;
+        }
+        
+        // Admin !removecandy command
+        if (command === "removecandy") {
+          const member = message.member as any;
+          if (!member?.permissions?.has("Administrator")) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Only administrators can remove candies!");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const targetUser = message.mentions.users.first();
+          const amount = parseInt(args[1]);
+          
+          if (!targetUser || isNaN(amount) || amount <= 0) {
+            const embed = new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setDescription("❌ Invalid usage! Format: `!removecandy @user <amount>`");
+            
+            await message.reply({ embeds: [embed] });
+            return;
+          }
+          
+          const { newBalance } = await removeCandyTool.execute({
+            context: { userId: targetUser.id, amount, source: "admin_removal", guildId },
+            runtimeContext,
+            mastra,
+          });
+          
+          const embed = new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`💀 **${targetUser.username}** had **${amount} candies** removed by an admin! New balance: **${newBalance} candies**`);
+          
+          await message.reply({ embeds: [embed] });
+          logger?.info("💀 [DiscordBot] Candies removed by admin", { adminId: userId, targetId: targetUser.id, amount, newBalance });
           return;
         }
         
