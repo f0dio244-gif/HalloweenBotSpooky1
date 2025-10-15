@@ -26,6 +26,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 15, 2025 - Admin Tools & Cooldown Enhancement
+- **Admin Candy Management**: Added !removecandy admin command for removing candies from users
+- **Vampire Cooldown**: Implemented 6-hour cooldown for !drinkblood command to balance vampire gameplay
+- **Help System Update**: Updated command list to include new !removecandy admin command
+
 ### October 2025 - Major Feature Expansion
 - **Command System Overhaul**: Changed !givecandy to !addcandy (admin) and created new !givecandy for player-to-player transfers
 - **Advanced Combat**: Added !sraidboss command spawning 3 raid bosses (Pumpkin Lord, Haunted Scarecrow, Ghost King) with health tracking and button-based attacks
