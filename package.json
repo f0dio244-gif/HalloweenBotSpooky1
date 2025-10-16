@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "mastra dev",
-    "mastra": "mastra dev",
-    "build": "mastra build",
+    "dev": "npx mastra dev",
+    "mastra": "npx mastra dev",
+    "build": "npx mastra build",
     "check": "tsc",
     "check:format": "prettier --check '**/*.ts'",
     "format": "prettier --write '**/*.ts'"
