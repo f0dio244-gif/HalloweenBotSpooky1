@@ -12,7 +12,7 @@
     "format": "prettier --write '**/*.ts'"
   },
   "keywords": [],
-  "type": "module",
+  "type": "commonjs",
   "author": "",
   "license": "ISC",
   "description": "",
